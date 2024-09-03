@@ -9,6 +9,7 @@ import '../../../utils/app_constant.dart';
 import '../../../utils/app_font.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../utils/app_sp.dart';
 import '../../../utils/app_urls.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -32,19 +33,14 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPressed = false;
   bool _showLoginButton = false;
 
-  List<String> grouplist = [
-    'Select a Aircraft Type',
-    'AW189',
-    'Bell 412',
-    'AT-123'
-  ];
+  String userToken = "";
+  String _userEmail = "";
 
-  List<String> subgrouplist = [
-    'Select a Parent Aircraft Type',
-    'A6-FHD',
-    'A6-FHC',
-    'A6-FFA'
-  ];
+  String selectedGroupis = '';
+  String selectedSubGroupis = '';
+
+  Map<String, String> groupMap = {};
+  Map<String, String> subgroupMap = {};
 
   @override
   void dispose() {
@@ -53,56 +49,148 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  //email Fetching API
   void _emailSearch(String email) async {
     setState(() {
       _isLoading = true;
       _isCompleted = false;
     });
-    // print(email);
-    // try {
-    //   var response = await http.Client().get(
-    //     Uri.parse("${AppUrls.emailcheck}$email"),
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       "Accept": "application/json",
-    //     },
-    //
-    //   );
-    //   // log("API>>>URL>>${AppUrls.emailcheck}$email}<<<REQ>>>${response.body}");
-    //   if (response.statusCode == 200) {
-    //     final responseData = json.decode(response.body);
-    //     print(responseData);
-    //
-    //
-    //   } else {
-    //     final responseData = json.decode(response.body);
-    //     EasyLoading.showError(responseData['message']);
-    //
-    //
-    //   }
-    // } catch (e) {
-    //   log("Error in API $e");
-    //
-    // }
 
+    try {
+      var response = await http.Client().get(
+        Uri.parse("${AppUrls.emailcheck}$email"),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+      );
 
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        userToken = responseData['token'];
+        _userEmail = email;
 
+        AppSp().setToken(responseData['token']);
 
-    await Future.delayed(Duration(seconds: 3));
+        Map<String, String> fetchedGroups = {
+          '0': 'Select Aircraft Type',
+          for (var group in responseData['data']['groups'])
+            group['id'].toString(): group['name'].toString()
+        };
 
-    print('hi');
+        setState(() {
+          groupMap = fetchedGroups;
+          _isLoading = false;
+          _isCompleted = true;
+          _showGroupDropdown = true;
+        });
+      } else {
+        final responseData = json.decode(response.body);
+        EasyLoading.showError(responseData['message']);
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      log("Error in API $e");
+      EasyLoading.showError("Error in API $e");
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
-    setState(() {
-      _isLoading = false;
-      _isCompleted = true;
-      _showGroupDropdown = true;
-    });
+  //Subgroup fetching API
+  void _fetchsubgroup(String groupId) async {
+    try {
+      var response = await http.Client().get(
+        Uri.parse("${AppUrls.groups}$groupId/subgroups/"),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer $userToken"
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        Map<String, String> fetchedSubgroups = {
+          '0': 'Select a Parent Aircraft Type',
+          for (var subgroup in responseData)
+            subgroup['id'].toString(): subgroup['group_name'].toString()
+        };
+
+        setState(() {
+          subgroupMap = fetchedSubgroups;
+          _showSubGroupDropdown = true;
+        });
+      } else {
+        EasyLoading.showError("Failed to load subgroups");
+      }
+    } catch (e) {
+      log("Error in API $e");
+      EasyLoading.showError("Error in API $e");
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Login API
+  void _loginAuthenticate(String password, String selectedSubGroupId) async {
+    print(password);
+    print(selectedSubGroupId);
+    print(_userEmail);
+
+    try {
+      var response = await http.Client().post(
+        Uri.parse("${AppUrls.login}"),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer $userToken"
+        },
+        body: jsonEncode({
+          "email": _userEmail,
+          "group": selectedSubGroupId,
+          "password": password
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        print(responseData);
+        EasyLoading.showSuccess(responseData['message']);
+        AppSp().setIsLogged(true);
+        Navigator.pushNamed(
+          context,
+          "/home",
+        );
+      } else {
+        final responseData = json.decode(response.body);
+        print(responseData['message']);
+        EasyLoading.showError(responseData['message']);
+
+        setState(() {
+          _passwordcontroller.text = '';
+        });
+      }
+    } catch (e) {
+      log("Error in API $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    String dropdowngroupValue = grouplist.first;
-    String dropdownsubgroupValue = subgrouplist.first;
+    String selectedGroupId =
+        groupMap.keys.isNotEmpty ? groupMap.keys.first : 'Select Group';
+    String dropdownGroupValue = groupMap[selectedGroupId] ?? 'Select Group';
+
+    String selectedSubGroupId = subgroupMap.keys.isNotEmpty
+        ? subgroupMap.keys.first
+        : 'Select a Subgroup';
+    String dropdownSubGroupValue =
+        subgroupMap[selectedSubGroupId] ?? 'Select a Subgroup';
 
     return Scaffold(
       body: Stack(
@@ -141,13 +229,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         focusNode: _focusNode,
                         textInputAction: TextInputAction.search,
                         onSubmitted: (value) {
-
                           if (_emailController.text.toString() == "") {
                             EasyLoading.showToast("Email address is required.");
-                          }else{
+                          } else {
                             _emailSearch(_emailController.text);
                           }
-
                         },
                         decoration: InputDecoration(
                           hintText: 'Email or Username',
@@ -218,27 +304,37 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               SizedBox(height: 10),
                               DropdownButtonFormField<String>(
-                                value: dropdowngroupValue,
-                                items: grouplist.map((String value) {
+                                value: dropdownGroupValue,
+                                items: groupMap.values.map((String value) {
                                   return DropdownMenuItem<String>(
                                     value: value,
                                     child: Text(
                                       value,
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                      ),
+                                      style: TextStyle(color: Colors.black),
                                     ),
                                   );
                                 }).toList(),
                                 onChanged: (String? newValue) {
                                   setState(() {
-                                    dropdowngroupValue = newValue!;
-                                    _showSubGroupDropdown = true;
-                                    print(dropdowngroupValue);
+                                    selectedGroupId = groupMap.keys.firstWhere(
+                                        (id) => groupMap[id] == newValue,
+                                        orElse: () => 'Select Group');
+                                    print(
+                                        "Selected Group ID: $selectedGroupId");
+
+                                    subgroupMap.clear();
+
+                                    if (selectedGroupId == '0') {
+                                      EasyLoading.showError(
+                                          'Please Select Aircraft Type');
+                                    } else {
+                                      selectedGroupis = selectedGroupId;
+                                      _fetchsubgroup(selectedGroupId);
+                                    }
                                   });
                                 },
                                 decoration: InputDecoration(
-                                  hintText: 'Select a Aircraft Type',
+                                  hintText: 'Select an Aircraft Type',
                                   hintStyle:
                                       TextStyle(color: Color(0xFFCACAC9)),
                                   filled: true,
@@ -260,7 +356,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                                 style: TextStyle(
-                                  color: Color(0xFFCACAC9),
+                                  color: Colors.black,
                                 ),
                               ),
                             ],
@@ -290,8 +386,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               SizedBox(height: 10),
                               DropdownButtonFormField<String>(
-                                value: dropdownsubgroupValue,
-                                items: subgrouplist.map((String value) {
+                                value: dropdownSubGroupValue,
+                                items: subgroupMap.values.map((String value) {
                                   return DropdownMenuItem<String>(
                                     value: value,
                                     child: Text(
@@ -304,8 +400,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                 }).toList(),
                                 onChanged: (String? newValue) {
                                   setState(() {
-                                    dropdownsubgroupValue = newValue!;
-                                    _showLoginButton = true;
+                                    selectedSubGroupId = subgroupMap.keys
+                                        .firstWhere(
+                                            (id) => subgroupMap[id] == newValue,
+                                            orElse: () => '0');
+                                    print(
+                                        "Selected SubGroup ID: $selectedSubGroupId");
+
+                                    if (selectedSubGroupId == '0') {
+                                      EasyLoading.showError(
+                                          'Please Select a Parent Aircraft Type');
+                                    } else {
+                                      selectedSubGroupis = selectedSubGroupId;
+                                      _showLoginButton = true;
+                                    }
                                   });
                                 },
                                 decoration: InputDecoration(
@@ -331,7 +439,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                                 style: TextStyle(
-                                  color: Color(0xFFCACAC9),
+                                  color: Colors.black,
                                 ),
                               ),
                             ],
@@ -417,14 +525,23 @@ class _LoginScreenState extends State<LoginScreen> {
                               SizedBox(height: 25),
                               ElevatedButton(
                                 onPressed: () {
-                                  setState(() {
-                                    _isPressed = !_isPressed;
+                                  if (_passwordcontroller.text.toString() ==
+                                      "") {
+                                    EasyLoading.showError(
+                                        "Please Enter Password");
+                                  } else {
+                                    _loginAuthenticate(_passwordcontroller.text,
+                                        selectedGroupis);
+                                  }
 
-                                    Navigator.pushNamed(
-                                      context,
-                                      "/home",
-                                    );
-                                  });
+                                  // setState(() {
+                                  //   _isPressed = !_isPressed;
+                                  //
+                                  //   Navigator.pushNamed(
+                                  //     context,
+                                  //     "/home",
+                                  //   );
+                                  // });
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _isPressed
