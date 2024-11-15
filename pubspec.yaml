@@ -44,6 +44,15 @@ dependencies:
   bottom_navy_bar:
   image_picker:
   shared_preferences:
+  dio:
+  percent_indicator:
+  flutter_pdfview:
+
+  external_app_launcher:
+
+  device_apps:
+
+
 
 
 dev_dependencies:
@@ -86,6 +95,9 @@ flutter:
      - assets/img/ProfileBack.png
      - assets/img/pdficon.png
      - assets/img/foldericon.png
+     - assets/img/profilepic.png
+     - assets/img/file-icon.png
+     - assets/img/ftl-table.png
 
 
 

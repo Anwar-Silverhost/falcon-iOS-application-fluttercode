@@ -16,15 +16,17 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> {
-  // Uncomment and use the initState method to handle any logic if needed
+
+  String userToken = "";
+
   @override
   void initState() {
     super.initState();
     Timer(const Duration(seconds: 3), () async {
       bool val = await AppSp().getIsLogged();
       if (val) {
-        Navigator.push(
-            context, MaterialPageRoute(builder: (context) => HomeScreen()));
+
+        Navigator.push( context, MaterialPageRoute(builder: (context) => HomeScreen()));
       } else {
         Navigator.push(
             context, MaterialPageRoute(builder: (context) => LoginScreen()));
